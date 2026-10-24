@@ -1,0 +1,32 @@
+# Terraform
+terraform/.terraform/
+terraform/*.tfstate
+terraform/*.tfstate.backup
+terraform/*.tfplan
+terraform/.terraform.lock.hcl
+
+# Secrets
+*.pem
+*.key
+.env
+.env.*
+
+# Model weights (never commit)
+models/
+*.safetensors
+*.bin
+*.pt
+
+# Benchmarks (keep CSVs, ignore large artifacts)
+benchmarks/*.png
+benchmarks/*.pdf
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo

@@ -1,0 +1,57 @@
+replicaCount: 1
+
+image:
+  repository: vllm/vllm-openai
+  tag: "v0.6.0"
+  pullPolicy: IfNotPresent
+
+model:
+  name: "Qwen/Qwen2.5-7B-Instruct"
+  # S3 path for pre-downloaded weights (set after first HF pull)
+  s3Path: ""
+  # Local mount path inside the container
+  mountPath: /models
+
+serving:
+  # The five knobs — tune these during wk 3-5 benchmarks
+  maxModelLen: 4096
+  gpuMemoryUtilization: 0.90
+  maxNumSeqs: 64
+  tensorParallelSize: 1
+  dtype: "bfloat16"
+  # Additional vLLM args
+  extraArgs: []
+
+resources:
+  limits:
+    nvidia.com/gpu: 1
+  requests:
+    nvidia.com/gpu: 1
+    cpu: "4"
+    memory: "16Gi"
+
+service:
+  type: ClusterIP
+  port: 8000
+
+nodeSelector:
+  karpenter.sh/nodepool: gpu
+
+tolerations:
+  - key: nvidia.com/gpu
+    operator: Exists
+    effect: NoSchedule
+
+metrics:
+  enabled: true
+  port: 8000
+  path: /metrics
+
+autoscaling:
+  enabled: false
+  # KEDA config — enable during wk 6-8
+  minReplicas: 1
+  maxReplicas: 4
+  trigger:
+    metric: "vllm:num_requests_waiting"
+    threshold: "4"

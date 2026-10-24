@@ -1,0 +1,5 @@
+apiVersion: v2
+name: vllm
+description: vLLM inference server for Qwen2.5-7B-Instruct
+version: 0.1.0
+appVersion: "0.6.0"
