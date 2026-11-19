@@ -2,33 +2,38 @@ replicaCount: 1
 
 image:
   repository: vllm/vllm-openai
-  tag: "v0.6.0"
+  tag: "latest"
   pullPolicy: IfNotPresent
 
 model:
-  name: "Qwen/Qwen2.5-7B-Instruct"
+  # AWQ 4-bit: 5.3 GB vs 14.3 GB BF16, 2-3x faster (benchmarked wk 3-5)
+  name: "Qwen/Qwen2.5-7B-Instruct-AWQ"
   # S3 path for pre-downloaded weights (set after first HF pull)
   s3Path: ""
   # Local mount path inside the container
   mountPath: /models
 
 serving:
-  # The five knobs — tune these during wk 3-5 benchmarks
+  # The five knobs — tuned during wk 3-5 benchmarks
   maxModelLen: 4096
   gpuMemoryUtilization: 0.90
   maxNumSeqs: 64
   tensorParallelSize: 1
-  dtype: "bfloat16"
+  # auto: vLLM reads quantization (AWQ) from model config
+  dtype: "auto"
   # Additional vLLM args
   extraArgs: []
 
+# g6.xlarge = 4 vCPU / 16 Gi total. Allocatable is less (kubelet reserve)
+# and DaemonSets need ~150m. Requests must leave headroom or Karpenter
+# can't fit the pod on the instance.
 resources:
   limits:
     nvidia.com/gpu: 1
   requests:
     nvidia.com/gpu: 1
-    cpu: "4"
-    memory: "16Gi"
+    cpu: "3"
+    memory: "12Gi"
 
 service:
   type: ClusterIP
@@ -49,9 +54,10 @@ metrics:
 
 autoscaling:
   enabled: false
-  # KEDA config — enable during wk 6-8
+  # KEDA config — flip enabled once KEDA + Prometheus are installed
   minReplicas: 1
-  maxReplicas: 4
+  maxReplicas: 4 # cost circuit-breaker: 4 × g6.xlarge ≈ $3.20/hr max
+  prometheusUrl: "http://kube-prometheus-stack-prometheus.monitoring:9090"
   trigger:
     metric: "vllm:num_requests_waiting"
     threshold: "4"

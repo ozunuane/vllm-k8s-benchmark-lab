@@ -1,0 +1,30 @@
+{{- if .Values.autoscaling.enabled }}
+# KEDA ScaledObject — scales vLLM replicas on queue depth, never CPU.
+# Chain: Prometheus scrapes vLLM /metrics → KEDA queries Prometheus →
+# KEDA manages an HPA → new replica goes Pending → Karpenter launches a GPU node.
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: {{ .Release.Name }}-vllm
+  labels:
+    app: vllm
+    app.kubernetes.io/instance: {{ .Release.Name }}
+spec:
+  scaleTargetRef:
+    name: {{ .Release.Name }}-vllm
+  minReplicaCount: {{ .Values.autoscaling.minReplicas }}
+  maxReplicaCount: {{ .Values.autoscaling.maxReplicas }}
+  # GPU nodes are expensive to boot (~5 min model load) — don't flap.
+  # Wait 5 minutes of low queue before scaling down.
+  cooldownPeriod: 300
+  triggers:
+    - type: prometheus
+      metadata:
+        serverAddress: {{ .Values.autoscaling.prometheusUrl }}
+        # Sum across replicas: total requests waiting for a KV-cache slot
+        query: sum({{ .Values.autoscaling.trigger.metric }})
+        # Scale up when avg waiting-per-replica exceeds this
+        threshold: {{ .Values.autoscaling.trigger.threshold | quote }}
+        # Any waiting request at all activates scaling from min
+        activationThreshold: "1"
+{{- end }}

@@ -30,3 +30,7 @@ Thumbs.db
 .vscode/
 *.swp
 *.swo
+
+# Terraform state anywhere in the tree
+*.tfstate
+*.tfstate.backup
