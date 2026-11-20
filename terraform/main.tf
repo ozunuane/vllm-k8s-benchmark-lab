@@ -2,7 +2,15 @@
 # GPU nodes: g6.xlarge (L4, 24 GB VRAM)
 
 terraform {
-  required_version = ">= 1.5"
+  required_version = ">= 1.10" # S3 native locking (use_lockfile)
+
+  backend "s3" {
+    bucket       = "vllm-bench-tfstate-595893120359" # created outside TF (chicken-and-egg)
+    key          = "vllm-bench-lab/terraform.tfstate"
+    region       = "us-east-1"
+    encrypt      = true
+    use_lockfile = true # S3-native lock — no DynamoDB table needed (TF >= 1.10)
+  }
 
   required_providers {
     aws = {
