@@ -85,6 +85,11 @@ module "eks" {
 
   cluster_endpoint_public_access = true
 
+  # Map the IAM identity running terraform (user ozi) as cluster admin
+  # via an EKS access entry — without this, kubectl/helm get
+  # "server has asked for the client to provide credentials"
+  enable_cluster_creator_admin_permissions = true
+
   # System node group — small, runs karpenter + system pods
   eks_managed_node_groups = {
     system = {
@@ -224,6 +229,11 @@ resource "kubectl_manifest" "gpu_node_pool" {
         metadata:
           labels:
             node-type: gpu
+            # nvidia-device-plugin's default nodeAffinity requires this
+            # label (normally set by Node Feature Discovery, which we
+            # don't run). Without it the plugin never schedules and the
+            # node never advertises nvidia.com/gpu.
+            nvidia.com/gpu.present: "true"
         spec:
           nodeClassRef:
             group: karpenter.k8s.aws
@@ -429,9 +439,11 @@ resource "helm_release" "dcgm_exporter" {
 resource "helm_release" "kube_prometheus_stack" {
   namespace        = "monitoring"
   create_namespace = true
-  name             = "kube-prometheus-stack"
-  repository       = "https://prometheus-community.github.io/helm-charts"
-  chart            = "kube-prometheus-stack"
+  name = "kube-prometheus-stack"
+  # Local chart: the HTTPS repo's ~15 MB index times out on slow links and
+  # ghcr OCI hit a stale-credential 403. Pre-pulled via:
+  #   helm pull oci://ghcr.io/prometheus-community/charts/kube-prometheus-stack -d charts/
+  chart = "${path.module}/charts/kube-prometheus-stack-93.5.0.tgz"
   wait             = true
   timeout          = 600
 

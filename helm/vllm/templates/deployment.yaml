@@ -7,7 +7,11 @@ metadata:
     app.kubernetes.io/name: vllm
     app.kubernetes.io/instance: {{ .Release.Name }}
 spec:
+  {{- if not .Values.autoscaling.enabled }}
+  # When autoscaling is on, the HPA owns .spec.replicas — rendering it
+  # here causes a server-side apply conflict with kube-controller-manager
   replicas: {{ .Values.replicaCount }}
+  {{- end }}
   selector:
     matchLabels:
       app: vllm
