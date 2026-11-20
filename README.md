@@ -56,3 +56,10 @@ cd benchmarks && ./run-benchmark.sh
 - [Inference Engineering roadmap](https://github.com/ozunuane) — parent planning repo
 - [kipply — Transformer Inference Arithmetic](https://kipp.ly/transformer-inference-arithmetic/)
 - [vLLM docs](https://docs.vllm.ai/)
+
+## Deployment patterns (branches)
+
+| Branch | Pattern | When to use |
+|---|---|---|
+| [`combined-serving`](../../tree/combined-serving) | Prefill + decode on one GPU per replica. KEDA scales whole replicas on queue depth. | Most workloads under ~100 concurrent users — simplest, cheapest |
+| `main` (in progress) | LLM-D disaggregated: prefill nodes (compute-heavy GPU) + decode nodes (bandwidth-heavy GPU), KV cache transfer between them | Large scale, long prompts, when prefill and decode contention hurts both |
