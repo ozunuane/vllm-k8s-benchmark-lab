@@ -1,0 +1,41 @@
+# One-time model transfer: Hugging Face → S3.
+# Run per model (edit MODEL_ID + S3_PREFIX), delete when Completed:
+#   kubectl apply -f jobs/model-transfer-job.yaml
+#   kubectl logs -n inference job/model-transfer -f
+#   kubectl delete -f jobs/model-transfer-job.yaml
+# Runs on a system node (datacenter pipe to HF, node role has S3 write).
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: model-transfer
+  namespace: inference
+spec:
+  backoffLimit: 1
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: transfer
+          image: python:3.12-slim
+          env:
+            - name: MODEL_ID
+              value: "Qwen/Qwen2.5-7B-Instruct-AWQ"
+            - name: S3_PREFIX
+              value: "s3://vllm-bench-models-595893120359/qwen2.5-7b-instruct-awq"
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              set -e
+              pip install -q "huggingface_hub[cli]" awscli
+              hf download "$MODEL_ID" --local-dir /work/model
+              aws s3 sync /work/model "$S3_PREFIX/" --no-progress
+              echo "TRANSFER DONE"
+          volumeMounts:
+            - name: work
+              mountPath: /work
+          resources:
+            requests: { cpu: "500m", memory: "1Gi" }
+      volumes:
+        - name: work
+          emptyDir:
+            sizeLimit: 40Gi
