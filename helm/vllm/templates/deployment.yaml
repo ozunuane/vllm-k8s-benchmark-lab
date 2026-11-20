@@ -34,13 +34,32 @@ spec:
       tolerations:
         {{- toYaml . | nindent 8 }}
       {{- end }}
+      {{- if .Values.model.s3Path }}
+      initContainers:
+        # Weights from S3 (same region, ~hundreds of MB/s) instead of HF
+        # over the internet — the biggest lever on pod boot / scale-out time
+        - name: fetch-weights
+          image: amazon/aws-cli:2.22.0
+          args: ["s3", "sync", "{{ .Values.model.s3Path }}", "{{ .Values.model.mountPath }}", "--no-progress"]
+          volumeMounts:
+            - name: model-weights
+              mountPath: {{ .Values.model.mountPath }}
+          resources:
+            requests: { cpu: "500m", memory: "512Mi" }
+      {{- end }}
       containers:
         - name: vllm
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           args:
             - "--model"
+            {{- if .Values.model.s3Path }}
+            - "{{ .Values.model.mountPath }}"
+            - "--served-model-name"
             - "{{ .Values.model.name }}"
+            {{- else }}
+            - "{{ .Values.model.name }}"
+            {{- end }}
             - "--max-model-len"
             - "{{ .Values.serving.maxModelLen }}"
             - "--gpu-memory-utilization"
@@ -80,8 +99,17 @@ spec:
           volumeMounts:
             - name: shm
               mountPath: /dev/shm
+            {{- if .Values.model.s3Path }}
+            - name: model-weights
+              mountPath: {{ .Values.model.mountPath }}
+            {{- end }}
       volumes:
         - name: shm
           emptyDir:
             medium: Memory
             sizeLimit: 8Gi
+        {{- if .Values.model.s3Path }}
+        - name: model-weights
+          emptyDir:
+            sizeLimit: 20Gi # node has 100Gi gp3; weights ~5.3Gi (AWQ)
+        {{- end }}

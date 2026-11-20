@@ -93,6 +93,14 @@ module "eks" {
 
   cluster_endpoint_public_access = true
 
+  # EKS >=1.23 ships no storage driver: PVCs (qdrant) hang on
+  # "waiting for ebs.csi.aws.com" without this addon.
+  cluster_addons = {
+    aws-ebs-csi-driver = {
+      most_recent = true
+    }
+  }
+
   # Pin admin access to an explicit principal instead of
   # enable_cluster_creator_admin_permissions: "creator" is derived from the
   # CALLER, so CI's plan role would plan to replace ozi's access entry
@@ -116,8 +124,12 @@ module "eks" {
   eks_managed_node_groups = {
     system = {
       instance_types = ["m5.large"]
-      min_size       = 1
-      max_size       = 3
+      # CSI controller + node pods use node-role creds (no IRSA at lab scale)
+      iam_role_additional_policies = {
+        EBSCSIDriver = "arn:aws:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy"
+      }
+      min_size = 1
+      max_size = 3
       # 2 nodes: Prometheus + Grafana + KEDA need the room, and the
       # Karpenter HA replica (pod anti-affinity) needs a second node.
       # Managed node groups don't autoscale without CAS — size explicitly.
@@ -155,9 +167,35 @@ module "karpenter" {
 
   node_iam_role_additional_policies = {
     AmazonSSMManagedInstanceCore = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
+    ModelsS3                     = aws_iam_policy.models_s3.arn
+    EBSCSIDriver                 = "arn:aws:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy"
   }
 
   tags = local.tags
+}
+
+# Model weights bucket access — GPU nodes (initContainer sync) and
+# system nodes (one-time HF→S3 transfer job). Pods use the node
+# instance profile; no IRSA needed at lab scale.
+resource "aws_iam_policy" "models_s3" {
+  name = "${local.cluster_name}-models-s3"
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect = "Allow"
+      Action = ["s3:GetObject", "s3:PutObject", "s3:ListBucket"]
+      Resource = [
+        "arn:aws:s3:::vllm-bench-models-595893120359",
+        "arn:aws:s3:::vllm-bench-models-595893120359/*"
+      ]
+    }]
+  })
+  tags = local.tags
+}
+
+resource "aws_iam_role_policy_attachment" "system_models_s3" {
+  role       = module.eks.eks_managed_node_groups["system"].iam_role_name
+  policy_arn = aws_iam_policy.models_s3.arn
 }
 
 provider "helm" {
@@ -227,6 +265,12 @@ resource "kubectl_manifest" "gpu_node_class" {
       securityGroupSelectorTerms:
         - tags:
             karpenter.sh/discovery: ${local.cluster_name}
+      # Hop limit 1 (default) blocks PODS from IMDS — the S3 initContainer
+      # gets "Unable to locate credentials". 2 = container-depth access
+      # to the node role (coarse but intentional at lab scale, no IRSA).
+      metadataOptions:
+        httpPutResponseHopLimit: 2
+        httpTokens: required
       blockDeviceMappings:
         - deviceName: /dev/xvda
           ebs:
@@ -265,7 +309,11 @@ resource "kubectl_manifest" "gpu_node_pool" {
             - key: node.kubernetes.io/instance-type
               operator: In
               values:
+                # Never pin one type: g6 (L4) hit InsufficientInstanceCapacity
+                # across all our AZs. Karpenter picks the cheapest available,
+                # so g6 stays preferred; g5 (A10G, same 24GB VRAM) is fallback.
                 - g6.xlarge
+                - g5.xlarge
             - key: karpenter.sh/capacity-type
               operator: In
               values:
@@ -541,6 +589,32 @@ resource "helm_release" "keda" {
   repository       = "https://kedacore.github.io/charts"
   chart            = "keda"
   wait             = true
+
+  depends_on = [module.eks]
+}
+
+# -----------------------------------------------------
+# Argo CD — GitOps. Apps live in argocd/ in this repo.
+# OCI registry: avoids argoproj helm repo's large index on slow links.
+# -----------------------------------------------------
+resource "helm_release" "argocd" {
+  namespace        = "argocd"
+  create_namespace = true
+  name             = "argocd"
+  repository       = "oci://ghcr.io/argoproj/argo-helm"
+  chart            = "argo-cd"
+  wait             = true
+  timeout          = 600
+
+  values = [
+    yamlencode({
+      configs = {
+        params = {
+          "server.insecure" = true # lab: port-forward, no TLS termination
+        }
+      }
+    })
+  ]
 
   depends_on = [module.eks]
 }
