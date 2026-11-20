@@ -10,8 +10,16 @@ spec:
     targetRevision: main
     path: helm/vllm
     helm:
-      valueFiles:
-        - values.yaml
+      # Must match the existing helm-CLI release name so Argo adopts
+      # the live resources (vllm-vllm) instead of duplicating them
+      releaseName: vllm
+      valuesObject:
+        model:
+          s3Path: s3://vllm-bench-models-595893120359/qwen2.5-7b-instruct-awq
+        autoscaling:
+          enabled: true
+          minReplicas: 1
+          maxReplicas: 2 # = EC2 G-vCPU quota (8) / 4 per node
   destination:
     server: https://kubernetes.default.svc
     namespace: inference

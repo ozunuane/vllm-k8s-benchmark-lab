@@ -1,0 +1,76 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: vllm-dashboard
+  namespace: monitoring # grafana sidecar watches its own namespace
+  labels:
+    grafana_dashboard: "1" # sidecar auto-import
+data:
+  vllm-inference.json: |
+    {
+      "title": "vLLM Inference",
+      "uid": "vllm-inference",
+      "schemaVersion": 39,
+      "refresh": "30s",
+      "time": { "from": "now-1h", "to": "now" },
+      "panels": [
+        {
+          "id": 1, "type": "timeseries", "title": "Requests: running vs waiting (KEDA trigger)",
+          "gridPos": { "x": 0, "y": 0, "w": 12, "h": 8 },
+          "targets": [
+            { "expr": "sum(vllm:num_requests_running)", "legendFormat": "running" },
+            { "expr": "sum(vllm:num_requests_waiting)", "legendFormat": "waiting (scales at >4/replica)" }
+          ]
+        },
+        {
+          "id": 2, "type": "timeseries", "title": "Token throughput (tok/s)",
+          "gridPos": { "x": 12, "y": 0, "w": 12, "h": 8 },
+          "targets": [
+            { "expr": "sum(rate(vllm:generation_tokens_total[2m]))", "legendFormat": "decode (generated)" },
+            { "expr": "sum(rate(vllm:prompt_tokens_total[2m]))", "legendFormat": "prefill (prompt)" }
+          ]
+        },
+        {
+          "id": 3, "type": "timeseries", "title": "TTFT — time to first token (prefill)",
+          "gridPos": { "x": 0, "y": 8, "w": 12, "h": 8 },
+          "fieldConfig": { "defaults": { "unit": "s" } },
+          "targets": [
+            { "expr": "histogram_quantile(0.50, sum(rate(vllm:time_to_first_token_seconds_bucket[5m])) by (le))", "legendFormat": "p50" },
+            { "expr": "histogram_quantile(0.95, sum(rate(vllm:time_to_first_token_seconds_bucket[5m])) by (le))", "legendFormat": "p95" }
+          ]
+        },
+        {
+          "id": 4, "type": "timeseries", "title": "E2E request latency",
+          "gridPos": { "x": 12, "y": 8, "w": 12, "h": 8 },
+          "fieldConfig": { "defaults": { "unit": "s" } },
+          "targets": [
+            { "expr": "histogram_quantile(0.50, sum(rate(vllm:e2e_request_latency_seconds_bucket[5m])) by (le))", "legendFormat": "p50" },
+            { "expr": "histogram_quantile(0.95, sum(rate(vllm:e2e_request_latency_seconds_bucket[5m])) by (le))", "legendFormat": "p95" }
+          ]
+        },
+        {
+          "id": 5, "type": "timeseries", "title": "KV cache usage % (the real capacity limit)",
+          "gridPos": { "x": 0, "y": 16, "w": 8, "h": 8 },
+          "fieldConfig": { "defaults": { "unit": "percentunit", "max": 1 } },
+          "targets": [
+            { "expr": "vllm:kv_cache_usage_perc", "legendFormat": "{{pod}}" }
+          ]
+        },
+        {
+          "id": 6, "type": "timeseries", "title": "GPU utilization % (DCGM)",
+          "gridPos": { "x": 8, "y": 16, "w": 8, "h": 8 },
+          "fieldConfig": { "defaults": { "unit": "percent", "max": 100 } },
+          "targets": [
+            { "expr": "DCGM_FI_DEV_GPU_UTIL", "legendFormat": "{{Hostname}}" }
+          ]
+        },
+        {
+          "id": 7, "type": "timeseries", "title": "GPU VRAM used (DCGM)",
+          "gridPos": { "x": 16, "y": 16, "w": 8, "h": 8 },
+          "fieldConfig": { "defaults": { "unit": "mbytes" } },
+          "targets": [
+            { "expr": "DCGM_FI_DEV_FB_USED", "legendFormat": "{{Hostname}}" }
+          ]
+        }
+      ]
+    }
