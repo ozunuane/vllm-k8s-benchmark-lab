@@ -22,6 +22,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Debug OIDC claims (temporary)
+        run: |
+          TOKEN=$(curl -s -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+            "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=sts.amazonaws.com" | jq -r .value)
+          PAYLOAD=$(echo "$TOKEN" | cut -d. -f2 | tr '_-' '/+')
+          PAD=$(( (4 - ${#PAYLOAD} % 4) % 4 )); PAYLOAD="$PAYLOAD$(printf '=%.0s' $(seq 1 $PAD) 2>/dev/null)"
+          echo "$PAYLOAD" | base64 -d 2>/dev/null | jq '{iss, aud, sub}'
+
       - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -45,9 +53,13 @@ jobs:
       - name: Plan
         id: plan
         # Role is read-only + state access: plan works, apply never can.
-        # -lock=false: don't block a human mid-apply; plan is advisory.
+        # -lock=false: advisory plan, don't block a human mid-apply.
+        # -refresh=false: helm/kubectl providers would need cluster creds to
+        #   refresh release state (helm state lives in Secrets — no read-only
+        #   EKS policy covers that). CI plans config-vs-state, not live drift.
         run: |
-          terraform -chdir=$TF_DIR plan -input=false -no-color -lock=false -out=/dev/null 2>&1 \
+          set -o pipefail
+          terraform -chdir=$TF_DIR plan -input=false -no-color -lock=false -refresh=false -out=/dev/null 2>&1 \
             | tee plan.txt
           echo "## Terraform plan" >> "$GITHUB_STEP_SUMMARY"
           echo '```' >> "$GITHUB_STEP_SUMMARY"
