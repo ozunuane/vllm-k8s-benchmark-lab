@@ -362,7 +362,8 @@ resource "kubectl_manifest" "prefill_node_pool" {
             - key: node.kubernetes.io/instance-type
               operator: In
               values:
-                - g6.xlarge    # L4 — good compute-to-cost ratio for prefill
+                - g6.xlarge # L4 preferred (cheapest wins when in stock)
+                - g5.xlarge # A10G fallback — us-east-1 L4 drought (gotcha 16)
             - key: karpenter.sh/capacity-type
               operator: In
               values:
@@ -460,6 +461,20 @@ resource "helm_release" "nvidia_device_plugin" {
     name  = "tolerations[0].effect"
     value = "NoSchedule"
   }
+  # Role NodePools (prefill/decode) carry a second taint — without this
+  # toleration the device plugin never lands and the GPU never registers
+  set {
+    name  = "tolerations[1].key"
+    value = "inference-role"
+  }
+  set {
+    name  = "tolerations[1].operator"
+    value = "Exists"
+  }
+  set {
+    name  = "tolerations[1].effect"
+    value = "NoSchedule"
+  }
 
   depends_on = [module.eks]
 }
@@ -497,6 +512,20 @@ resource "helm_release" "dcgm_exporter" {
   }
   set {
     name  = "tolerations[0].effect"
+    value = "NoSchedule"
+  }
+  # Role NodePools (prefill/decode) carry a second taint — without this
+  # toleration the device plugin never lands and the GPU never registers
+  set {
+    name  = "tolerations[1].key"
+    value = "inference-role"
+  }
+  set {
+    name  = "tolerations[1].operator"
+    value = "Exists"
+  }
+  set {
+    name  = "tolerations[1].effect"
     value = "NoSchedule"
   }
 
