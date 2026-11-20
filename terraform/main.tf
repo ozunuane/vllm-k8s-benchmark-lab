@@ -404,12 +404,12 @@ resource "helm_release" "nvidia_device_plugin" {
 # DCGM Exporter (GPU metrics for Prometheus)
 # -----------------------------------------------------
 resource "helm_release" "dcgm_exporter" {
-  namespace        = "nvidia-device-plugin"
-  name             = "dcgm-exporter"
-  repository       = "https://nvidia.github.io/dcgm-exporter/helm-charts"
-  chart            = "dcgm-exporter"
-  version          = "3.6.0"
-  wait             = true
+  namespace  = "nvidia-device-plugin"
+  name       = "dcgm-exporter"
+  repository = "https://nvidia.github.io/dcgm-exporter/helm-charts"
+  chart      = "dcgm-exporter"
+  version    = "3.6.0"
+  wait       = true
 
   # ServiceMonitor CRD is provided by kube-prometheus-stack
   set {
@@ -447,13 +447,13 @@ resource "helm_release" "dcgm_exporter" {
 resource "helm_release" "kube_prometheus_stack" {
   namespace        = "monitoring"
   create_namespace = true
-  name = "kube-prometheus-stack"
+  name             = "kube-prometheus-stack"
   # Local chart: the HTTPS repo's ~15 MB index times out on slow links and
   # ghcr OCI hit a stale-credential 403. Pre-pulled via:
   #   helm pull oci://ghcr.io/prometheus-community/charts/kube-prometheus-stack -d charts/
-  chart = "${path.module}/charts/kube-prometheus-stack-93.5.0.tgz"
-  wait             = true
-  timeout          = 600
+  chart   = "${path.module}/charts/kube-prometheus-stack-93.5.0.tgz"
+  wait    = true
+  timeout = 600
 
   values = [
     yamlencode({
