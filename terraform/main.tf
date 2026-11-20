@@ -93,10 +93,24 @@ module "eks" {
 
   cluster_endpoint_public_access = true
 
-  # Map the IAM identity running terraform (user ozi) as cluster admin
-  # via an EKS access entry — without this, kubectl/helm get
-  # "server has asked for the client to provide credentials"
-  enable_cluster_creator_admin_permissions = true
+  # Pin admin access to an explicit principal instead of
+  # enable_cluster_creator_admin_permissions: "creator" is derived from the
+  # CALLER, so CI's plan role would plan to replace ozi's access entry
+  # (lockout if ever applied) and churn every CI plan.
+  access_entries = {
+    ozi_admin = {
+      principal_arn = "arn:aws:iam::595893120359:user/ozi"
+      policy_associations = {
+        admin = {
+          policy_arn   = "arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy"
+          access_scope = { type = "cluster" }
+        }
+      }
+    }
+  }
+
+  # Same caller-relative trap: KMS key administrators default to the caller
+  kms_key_administrators = ["arn:aws:iam::595893120359:user/ozi"]
 
   # System node group — small, runs karpenter + system pods
   eks_managed_node_groups = {
