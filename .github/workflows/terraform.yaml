@@ -1,0 +1,56 @@
+name: Terraform
+
+on:
+  pull_request:
+    branches: [main]
+    paths: ["terraform/**", ".github/workflows/terraform.yaml"]
+  push:
+    branches: [main]
+    paths: ["terraform/**", ".github/workflows/terraform.yaml"]
+  workflow_dispatch: {}
+
+permissions:
+  id-token: write # OIDC token for AWS — no stored keys
+  contents: read
+
+env:
+  AWS_ROLE: arn:aws:iam::595893120359:role/github-actions-terraform-plan
+  TF_DIR: terraform
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ env.AWS_ROLE }}
+          aws-region: us-east-1
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.10.0" # matches local; >=1.10 for use_lockfile
+
+      - name: Format check
+        run: terraform -chdir=$TF_DIR fmt -check -diff
+
+      - name: Init (S3 backend)
+        run: terraform -chdir=$TF_DIR init -input=false
+
+      - name: Validate
+        run: terraform -chdir=$TF_DIR validate
+
+      - name: Plan
+        id: plan
+        # Role is read-only + state access: plan works, apply never can.
+        # -lock=false: don't block a human mid-apply; plan is advisory.
+        run: |
+          terraform -chdir=$TF_DIR plan -input=false -no-color -lock=false -out=/dev/null 2>&1 \
+            | tee plan.txt
+          echo "## Terraform plan" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          tail -40 plan.txt >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"

@@ -16,18 +16,9 @@ jobs:
       - name: Lint vLLM chart
         run: helm lint helm/vllm/
 
-  terraform-lint:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Terraform
-        uses: hashicorp/setup-terraform@v3
-
-      - name: Terraform fmt check
-        run: terraform -chdir=terraform fmt -check
-
-      - name: Terraform validate
+      - name: Render check — both autoscaling modes
         run: |
-          terraform -chdir=terraform init -backend=false
-          terraform -chdir=terraform validate
+          helm template vllm helm/vllm/ > /dev/null
+          helm template vllm helm/vllm/ --set autoscaling.enabled=true > /dev/null
+
+  # terraform fmt/validate/plan moved to terraform.yaml (OIDC + real S3 backend)
