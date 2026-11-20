@@ -31,6 +31,15 @@ docs/               Architecture notes and runbooks
 Pulled from Hugging Face once, stored in S3, mounted via initContainer/PVC.
 Never re-downloaded per pod start.
 
+**Planned improvement — stream weights, skip the copy:** scale-out is currently
+~8 min pod-to-serving, dominated by the initContainer's `s3 sync` to local disk
+followed by a sequential load into VRAM. vLLM's
+[Run:ai Model Streamer](https://docs.vllm.ai/en/latest/models/extensions/runai_model_streamer.html)
+(`--load-format runai_streamer` + `--model s3://...`) reads tensors from S3
+concurrently and streams them straight into GPU memory — no initContainer, no
+node-disk staging, load time bounded by S3 throughput instead of
+disk-write + sequential-read. Candidate next step for cutting cold-start.
+
 ## GPU instances
 
 | Instance | GPU   | VRAM  | Use case           |
