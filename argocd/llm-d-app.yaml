@@ -1,0 +1,18 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: llm-d
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/ozunuane/vllm-k8s-benchmark-lab.git
+    targetRevision: main
+    path: llm-d
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: inference
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true

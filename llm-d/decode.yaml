@@ -1,0 +1,96 @@
+# Decode worker — bandwidth-bound phase on A10G (g5.xlarge).
+# Consumes the prefill worker's KV cache via NIXL, streams tokens.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vllm-decode
+  namespace: inference
+  labels: { app: vllm-decode }
+spec:
+  replicas: 1
+  # Zero-downtime GPU updates: surge a temp pod, Karpenter launches a
+  # temp node for the update window, old pod dies after new is Ready.
+  # REQUIRES G-vCPU quota >= 12 (increase to 16 requested 2026-11-20).
+  # Until approved: updates hang Pending — unblock with
+  #   kubectl delete pod -l app=<role> (accepting the boot downtime).
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels: { app: vllm-decode }
+  template:
+    metadata:
+      labels: { app: vllm-decode }
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8000"
+        prometheus.io/path: "/metrics"
+    spec:
+      nodeSelector:
+        inference-role: decode
+      tolerations:
+        - { key: nvidia.com/gpu, operator: Exists, effect: NoSchedule }
+        - { key: inference-role, value: decode, effect: NoSchedule }
+      initContainers:
+        - name: fetch-weights
+          image: amazon/aws-cli:2.22.0
+          args: ["s3", "sync", "s3://vllm-bench-models-595893120359/qwen2.5-7b-instruct-awq", "/models", "--no-progress"]
+          volumeMounts: [{ name: model-weights, mountPath: /models }]
+      containers:
+        - name: vllm
+          image: vllm/vllm-openai:latest
+          args:
+            - "--model"
+            - "/models"
+            - "--served-model-name"
+            - "Qwen/Qwen2.5-7B-Instruct-AWQ"
+            - "--max-model-len"
+            - "4096"
+            - "--gpu-memory-utilization"
+            - "0.90"
+            - "--port"
+            - "8000"
+            - "--kv-transfer-config"
+            - '{"kv_connector":"NixlConnector","kv_role":"kv_consumer"}'
+          env:
+            - name: UCX_TLS
+              value: "tcp,cuda_copy"
+            - name: VLLM_NIXL_SIDE_CHANNEL_PORT
+              value: "5600"
+            - name: VLLM_NIXL_SIDE_CHANNEL_HOST
+              valueFrom: { fieldRef: { fieldPath: status.podIP } }
+          ports:
+            - { containerPort: 8000, name: http }
+            - { containerPort: 5600, name: nixl-side }
+          resources:
+            limits: { nvidia.com/gpu: 1 }
+            requests: { nvidia.com/gpu: 1, cpu: "3", memory: "12Gi" }
+          startupProbe:
+            httpGet: { path: /health, port: http }
+            periodSeconds: 15
+            failureThreshold: 40
+          readinessProbe:
+            httpGet: { path: /health, port: http }
+            periodSeconds: 10
+          volumeMounts:
+            - { name: shm, mountPath: /dev/shm }
+            - { name: model-weights, mountPath: /models }
+      volumes:
+        - name: shm
+          emptyDir: { medium: Memory, sizeLimit: 8Gi }
+        - name: model-weights
+          emptyDir: { sizeLimit: 20Gi }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: vllm-decode
+  namespace: inference
+spec:
+  type: ClusterIP
+  selector: { app: vllm-decode }
+  ports:
+    - { name: http, port: 8000, targetPort: 8000 }
+    - { name: nixl-side, port: 5600, targetPort: 5600 }
