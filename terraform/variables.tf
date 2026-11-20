@@ -19,7 +19,7 @@ variable "cluster_version" {
 variable "enable_disaggregated" {
   description = "Enable disaggregated prefill/decode NodePools (LLM-D pattern)"
   type        = bool
-  default     = false
+  default     = true # main = LLM-D lab; combined pattern lives on branch combined-serving
 }
 
 variable "model_bucket" {

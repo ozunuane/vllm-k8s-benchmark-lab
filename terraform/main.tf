@@ -352,6 +352,7 @@ resource "kubectl_manifest" "prefill_node_pool" {
           labels:
             node-type: gpu
             inference-role: prefill
+            nvidia.com/gpu.present: "true" # device plugin affinity (gotcha 9)
         spec:
           nodeClassRef:
             group: karpenter.k8s.aws
@@ -397,6 +398,7 @@ resource "kubectl_manifest" "decode_node_pool" {
           labels:
             node-type: gpu
             inference-role: decode
+            nvidia.com/gpu.present: "true" # device plugin affinity (gotcha 9)
         spec:
           nodeClassRef:
             group: karpenter.k8s.aws
