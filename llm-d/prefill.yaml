@@ -7,7 +7,7 @@ metadata:
   namespace: inference
   labels: { app: vllm-prefill }
 spec:
-  replicas: 1
+  replicas: 0 # parked overnight + frees quota for llm-d v1.0 install
   # Zero-downtime GPU updates: surge a temp pod, Karpenter launches a
   # temp node for the update window, old pod dies after new is Ready.
   # REQUIRES G-vCPU quota >= 12 (increase to 16 requested 2026-11-20).
