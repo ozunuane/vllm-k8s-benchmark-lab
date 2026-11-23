@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: llm-d
+  labels:
+    llm-d.ai/inference-serving: "true"
+  annotations:
+    # Never prune the namespace on app deletion — it holds the out-of-band
+    # llm-d-hf-token secret and pruning would cascade-delete everything in it.
+    argocd.argoproj.io/sync-options: Prune=false
