@@ -60,7 +60,13 @@ spec:
                   image: REPLACE_MODEL_SERVER_IMAGE
                   command: ["vllm", "serve"]
                   args:
-                    - "Qwen/Qwen2.5-7B-Instruct-AWQ"
+                    # Run:ai Model Streamer: tensors stream concurrently from S3
+                    # straight into GPU memory — no HF download, no initContainer,
+                    # no plaintext weights staged on node disk. Creds come from
+                    # the node role via IMDS (hop limit 2, gotcha 17).
+                    - "s3://vllm-bench-models-595893120359/qwen2.5-7b-instruct-awq"
+                    - "--load-format=runai_streamer"
+                    - "--served-model-name=Qwen/Qwen2.5-7B-Instruct-AWQ"
                     - "--disable-access-log-for-endpoints=/health,/metrics,/v1/models"
                     - "--tensor-parallel-size=1"
                     - "--max-model-len=4096"
@@ -71,11 +77,12 @@ spec:
                     - "--no-disable-hybrid-kv-cache-manager"
                     - "--shutdown-timeout=45"
                   env:
+                    # Weights come from S3 — kept as a literal so the pod spec
+                    # no longer depends on the llm-d-hf-token secret existing.
                     - name: HF_TOKEN
-                      valueFrom:
-                        secretKeyRef:
-                          name: llm-d-hf-token
-                          key: HF_TOKEN
+                      value: "unused"
+                    - name: AWS_REGION
+                      value: "us-east-1"
                     - name: VLLM_NIXL_SIDE_CHANNEL_HOST
                       valueFrom:
                         fieldRef:
@@ -186,7 +193,13 @@ spec:
                   image: REPLACE_MODEL_SERVER_IMAGE
                   command: ["vllm", "serve"]
                   args:
-                    - "Qwen/Qwen2.5-7B-Instruct-AWQ"
+                    # Run:ai Model Streamer: tensors stream concurrently from S3
+                    # straight into GPU memory — no HF download, no initContainer,
+                    # no plaintext weights staged on node disk. Creds come from
+                    # the node role via IMDS (hop limit 2, gotcha 17).
+                    - "s3://vllm-bench-models-595893120359/qwen2.5-7b-instruct-awq"
+                    - "--load-format=runai_streamer"
+                    - "--served-model-name=Qwen/Qwen2.5-7B-Instruct-AWQ"
                     - "--disable-access-log-for-endpoints=/health,/metrics,/v1/models"
                     - "--tensor-parallel-size=1"
                     - "--max-model-len=4096"
@@ -198,11 +211,12 @@ spec:
                     - "--port=8200"
                     - "--shutdown-timeout=45"
                   env:
+                    # Weights come from S3 — kept as a literal so the pod spec
+                    # no longer depends on the llm-d-hf-token secret existing.
                     - name: HF_TOKEN
-                      valueFrom:
-                        secretKeyRef:
-                          name: llm-d-hf-token
-                          key: HF_TOKEN
+                      value: "unused"
+                    - name: AWS_REGION
+                      value: "us-east-1"
                     - name: VLLM_NIXL_SIDE_CHANNEL_HOST
                       valueFrom:
                         fieldRef:
