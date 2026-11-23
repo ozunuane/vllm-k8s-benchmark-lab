@@ -30,13 +30,13 @@ All images and charts pinned — upstream guides default to moving tags
 ## Request path
 
 ```
-client → Service llm-d-pd-epp:80 (Envoy sidecar :8081, OpenAI API)
+client → Service llm-d-epp:80 (Envoy sidecar :8081, OpenAI API)
        → EPP picks prefill endpoint (pd-config.yaml scheduling profiles)
        → prefill pod :8000 (kv_producer)
        → decode pod  :8000 routing sidecar → vLLM :8200 (kv_consumer, KV via NIXL)
 ```
 
-Label contract: DisaggregatedSet pods carry `llm-d.ai/pool: qwen-pd`;
+Label contract: DisaggregatedSet pods carry `llm-d.ai/pool: qwen-disagg`;
 the router values' `modelServers.matchLabels` must match — that is what the
 InferencePool selects.
 
@@ -59,7 +59,7 @@ kubectl create secret generic llm-d-hf-token -n llm-d --from-literal=HF_TOKEN=du
 ## Smoke test
 
 ```
-kubectl -n llm-d port-forward svc/llm-d-pd-epp 8080:80
+kubectl -n llm-d port-forward svc/llm-d-epp 8080:80
 curl -s localhost:8080/v1/chat/completions -H 'Content-Type: application/json' \
   -d '{"model":"Qwen/Qwen2.5-7B-Instruct-AWQ","messages":[{"role":"user","content":"hi"}],"max_tokens":32}'
 ```

@@ -4,15 +4,15 @@
 # for this lab's capacity:
 #   upstream: gpt-oss-120b, prefill TP=1 + decode TP=4 on p5en/H200 + EFA
 #   here:     Qwen2.5-7B-AWQ, prefill TP=1 + decode TP=1 on g6/g5.xlarge, UCX/TCP
-# The pod label llm-d.ai/pool=qwen-pd is the InferencePool selector contract —
+# The pod label llm-d.ai/pool=qwen-disagg is the InferencePool selector contract —
 # it must match router.modelServers.matchLabels in the router app's values.
 apiVersion: disaggregatedset.x-k8s.io/v1
 kind: DisaggregatedSet
 metadata:
-  name: llm-d-pd
+  name: llm-d
   labels:
     llm-d.ai/inference-serving: "true"
-    llm-d.ai/pool: qwen-pd
+    llm-d.ai/pool: qwen-disagg
     llm-d.ai/accelerator-variant: gpu
     llm-d.ai/accelerator-vendor: nvidia
     llm-d.ai/engine-type: vllm
@@ -38,7 +38,7 @@ spec:
             metadata:
               labels:
                 llm-d.ai/inference-serving: "true"
-                llm-d.ai/pool: qwen-pd
+                llm-d.ai/pool: qwen-disagg
                 llm-d.ai/accelerator-variant: gpu
                 llm-d.ai/accelerator-vendor: nvidia
                 llm-d.ai/engine-type: vllm
@@ -49,7 +49,7 @@ spec:
                 prometheus.io/port: "8000"
                 prometheus.io/path: "/metrics"
             spec:
-              serviceAccountName: llm-d-pd
+              serviceAccountName: llm-d
               nodeSelector:
                 inference-role: prefill
               tolerations:
@@ -143,7 +143,7 @@ spec:
             metadata:
               labels:
                 llm-d.ai/inference-serving: "true"
-                llm-d.ai/pool: qwen-pd
+                llm-d.ai/pool: qwen-disagg
                 llm-d.ai/accelerator-variant: gpu
                 llm-d.ai/accelerator-vendor: nvidia
                 llm-d.ai/engine-type: vllm
@@ -154,7 +154,7 @@ spec:
                 prometheus.io/port: "8200"
                 prometheus.io/path: "/metrics"
             spec:
-              serviceAccountName: llm-d-pd
+              serviceAccountName: llm-d
               nodeSelector:
                 inference-role: decode
               tolerations:

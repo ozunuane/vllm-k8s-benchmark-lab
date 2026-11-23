@@ -1,6 +1,6 @@
 # Wave 1: llm-d Router (standalone mode) — EPP scheduler + InferencePool with
 # an Envoy sidecar as the entrypoint. No gateway controller needed: clients hit
-# Service llm-d-pd-epp:80 (-> sidecar 8081) with the OpenAI API.
+# Service llm-d-epp:80 (-> sidecar 8081) with the OpenAI API.
 #
 # This is "tuning from code": the entire P/D scheduler config (plugins,
 # scheduling profiles, thresholds) lives in valuesObject below. Every tuning
@@ -24,8 +24,8 @@ spec:
     # resolution a moving tag silently changes what's deployed. Never float.
     targetRevision: v1.0.0
     helm:
-      # Release name = InferencePool name = EPP service prefix (llm-d-pd-epp).
-      releaseName: llm-d-pd
+      # Release name = InferencePool name = EPP service prefix (llm-d-epp).
+      releaseName: llm-d
       valuesObject:
         router:
           extraServicePorts:
@@ -95,7 +95,7 @@ spec:
             # Selector contract: must match the DisaggregatedSet pod labels
             # in llm-d-v1/modelserver/disaggregatedset.yaml.
             matchLabels:
-              llm-d.ai/pool: "qwen-pd"
+              llm-d.ai/pool: "qwen-disagg"
           proxy:
             proxyType: envoy
             # Upstream flags (defaults are --log-level trace + unbounded
