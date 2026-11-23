@@ -130,10 +130,11 @@ module "eks" {
       }
       min_size = 1
       max_size = 3
-      # 2 nodes: Prometheus + Grafana + KEDA need the room, and the
-      # Karpenter HA replica (pod anti-affinity) needs a second node.
+      # 3 nodes: with the llm-d v1.0 stack (EPP+Envoy, LWS controller) on top
+      # of Prometheus/Grafana/KEDA/Argo CD/middledock, 2 nodes sat at ~90%
+      # CPU requests — Argo CD had no burst headroom and the UI crawled.
       # Managed node groups don't autoscale without CAS — size explicitly.
-      desired_size = 2
+      desired_size = 3
 
       labels = {
         role = "system"
