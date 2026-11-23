@@ -631,6 +631,25 @@ resource "helm_release" "keda" {
 # Argo CD — GitOps. Apps live in argocd/ in this repo.
 # OCI registry: avoids argoproj helm repo's large index on slow links.
 # -----------------------------------------------------
+# Scheduling protection for the GitOps control plane: on packed system nodes
+# (we run them hot), default-priority Argo CD pods are first in line for
+# preemption and kubelet pressure eviction — and when Argo goes down, nothing
+# else can be fixed through git. High priority = schedules first (preempting
+# lower-priority pods if needed), evicted last. Below system-cluster-critical
+# (2e9) on purpose: CNI/DNS still outrank it.
+resource "kubectl_manifest" "platform_critical_priority" {
+  yaml_body = yamlencode({
+    apiVersion    = "scheduling.k8s.io/v1"
+    kind          = "PriorityClass"
+    metadata      = { name = "platform-critical" }
+    value         = 100000
+    globalDefault = false
+    description   = "Platform control plane (Argo CD): evict last, schedule first."
+  })
+
+  depends_on = [module.eks]
+}
+
 resource "helm_release" "argocd" {
   namespace        = "argocd"
   create_namespace = true
@@ -642,6 +661,11 @@ resource "helm_release" "argocd" {
 
   values = [
     yamlencode({
+      global = {
+        # Rolls all argocd pods once on apply — which also respreads them
+        # onto the third system node (K8s never rebalances running pods).
+        priorityClassName = "platform-critical"
+      }
       configs = {
         params = {
           "server.insecure" = true # lab: port-forward, no TLS termination
@@ -650,7 +674,7 @@ resource "helm_release" "argocd" {
     })
   ]
 
-  depends_on = [module.eks]
+  depends_on = [module.eks, kubectl_manifest.platform_critical_priority]
 }
 
 # -----------------------------------------------------
