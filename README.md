@@ -62,9 +62,13 @@ cd benchmarks && ./run-benchmark.sh
 
 ## Related
 
-- [Inference Engineering roadmap](https://github.com/ozunuane) — parent planning repo
+- [Build log / blog series](https://medium.com/@ozidevops) — the write-ups behind this lab:
+  - [Prefill vs Decode: Why LLM Inference Looks Nothing Like Serving a REST API](https://blog.stackademic.com/prefill-vs-decode-why-llm-inference-looks-nothing-like-serving-a-rest-api-204a4900d772)
+  - [I Built a Production Lab-Grade LLM Serving Platform on EKS](https://ozidevops.medium.com/i-built-a-production-lab-grade-llm-serving-platform-on-eks-the-model-was-the-easy-part-acc186037b2a)
+- [middledock-rag-assistant](https://github.com/ozunuane/middledock-rag-assistant) — companion RAG app served by this platform
 - [kipply — Transformer Inference Arithmetic](https://kipp.ly/transformer-inference-arithmetic/)
 - [vLLM docs](https://docs.vllm.ai/)
+- [llm-d project](https://llm-d.ai/) — the disaggregated serving stack installed in `llm-d-v1/`
 
 ## Deployment patterns (branches)
 
