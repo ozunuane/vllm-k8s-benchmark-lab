@@ -77,7 +77,10 @@ spec:
                     - "--no-disable-hybrid-kv-cache-manager"
                     - "--shutdown-timeout=45"
                   env:
-                    # No HF_TOKEN needed — weights come from S3, not Hugging Face.
+                    # Weights come from S3 — kept as a literal so the pod spec
+                    # no longer depends on the llm-d-hf-token secret existing.
+                    - name: HF_TOKEN
+                      value: "unused"
                     - name: AWS_REGION
                       value: "us-east-1"
                     - name: VLLM_NIXL_SIDE_CHANNEL_HOST
@@ -208,7 +211,10 @@ spec:
                     - "--port=8200"
                     - "--shutdown-timeout=45"
                   env:
-                    # No HF_TOKEN needed — weights come from S3, not Hugging Face.
+                    # Weights come from S3 — kept as a literal so the pod spec
+                    # no longer depends on the llm-d-hf-token secret existing.
+                    - name: HF_TOKEN
+                      value: "unused"
                     - name: AWS_REGION
                       value: "us-east-1"
                     - name: VLLM_NIXL_SIDE_CHANNEL_HOST
