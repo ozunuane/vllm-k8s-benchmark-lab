@@ -21,7 +21,7 @@ spec:
           # Fixed single replica for the combined-vs-disaggregated A/B.
           # Quota 16 fits combined (1 GPU) + llm-d P/D (2 GPUs) concurrently.
           # Park again with min 0; raise max for KEDA scale-out tests.
-          minReplicas: 1
+          minReplicas: 0
           maxReplicas: 1
   destination:
     server: https://kubernetes.default.svc
