@@ -20,7 +20,7 @@ metadata:
 spec:
   # One 1-prefill + 1-decode set = 2 GPU nodes = the full 8 G-vCPU quota.
   # Raising slices requires a quota increase first (gotcha 11).
-  slices: 1
+  slices: 0 # parked for pd-proxy A/B benchmark run
 
   roles:
     - name: prefill
