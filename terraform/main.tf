@@ -128,12 +128,14 @@ module "eks" {
       iam_role_additional_policies = {
         EBSCSIDriver = "arn:aws:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy"
       }
-      min_size = 1
-      max_size = 3
       # 3 nodes: with the llm-d v1.0 stack (EPP+Envoy, LWS controller) on top
       # of Prometheus/Grafana/KEDA/Argo CD/middledock, 2 nodes sat at ~90%
       # CPU requests — Argo CD had no burst headroom and the UI crawled.
-      # Managed node groups don't autoscale without CAS — size explicitly.
+      # min_size does the scaling: the EKS module ignores desired_size
+      # changes after creation (lifecycle ignore_changes, so TF doesn't
+      # fight autoscalers) — bumping desired_size alone is a silent no-op.
+      min_size     = 3
+      max_size     = 3
       desired_size = 3
 
       labels = {
@@ -649,6 +651,62 @@ resource "helm_release" "argocd" {
   ]
 
   depends_on = [module.eks]
+}
+
+# -----------------------------------------------------
+# GitHub Actions APPLY role — the deploy half of the pipeline.
+# Plan role (AWS_ROLE secret, read-only) handles PRs; this role applies on
+# main, and ONLY from a job gated by the GitHub "production" environment:
+# the OIDC sub for an environment-gated job is
+#   repo:<owner@id>/<repo@id>:environment:production
+# (immutable-ID format — gotcha 13; plain branch subs won't match).
+# Blast radius controls: environment requires manual approval in GitHub,
+# trust matches this repo's immutable ID only.
+# -----------------------------------------------------
+data "aws_iam_openid_connect_provider" "github" {
+  url = "https://token.actions.githubusercontent.com"
+}
+
+resource "aws_iam_role" "gha_apply" {
+  name = "gha-terraform-apply"
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect    = "Allow"
+      Principal = { Federated = data.aws_iam_openid_connect_provider.github.arn }
+      Action    = "sts:AssumeRoleWithWebIdentity"
+      Condition = {
+        StringEquals = {
+          "token.actions.githubusercontent.com:aud" = "sts.amazonaws.com"
+          "token.actions.githubusercontent.com:sub" = "repo:ozunuane@30769770/vllm-k8s-benchmark-lab@1431717694:environment:production"
+        }
+      }
+    }]
+  })
+}
+
+# The stack manages IAM/EKS/VPC — an apply role is admin in practice.
+# Honest admin + hard gates beats a 300-line "least privilege" policy that
+# drifts every time the stack grows.
+resource "aws_iam_role_policy_attachment" "gha_apply_admin" {
+  role       = aws_iam_role.gha_apply.name
+  policy_arn = "arn:aws:iam::aws:policy/AdministratorAccess"
+}
+
+# Cluster access for the helm/kubectl providers during apply —
+# explicit entry, never caller-derived (gotcha 14).
+resource "aws_eks_access_entry" "gha_apply" {
+  cluster_name  = module.eks.cluster_name
+  principal_arn = aws_iam_role.gha_apply.arn
+}
+
+resource "aws_eks_access_policy_association" "gha_apply_admin" {
+  cluster_name  = module.eks.cluster_name
+  principal_arn = aws_iam_role.gha_apply.arn
+  policy_arn    = "arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy"
+  access_scope { type = "cluster" }
+
+  depends_on = [aws_eks_access_entry.gha_apply]
 }
 
 # -----------------------------------------------------

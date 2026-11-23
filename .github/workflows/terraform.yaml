@@ -65,3 +65,39 @@ jobs:
           echo '```' >> "$GITHUB_STEP_SUMMARY"
           tail -40 plan.txt >> "$GITHUB_STEP_SUMMARY"
           echo '```' >> "$GITHUB_STEP_SUMMARY"
+
+  # Deploy half of the pipeline. Runs only on main (push or manual dispatch),
+  # and the "production" environment requires manual approval in GitHub before
+  # the job starts — the apply role's OIDC trust only matches the
+  # environment-gated sub, so an un-gated job can't even assume it.
+  apply:
+    runs-on: ubuntu-latest
+    needs: plan
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials (OIDC, apply role)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_APPLY_ROLE }}
+          aws-region: us-east-1
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.10.0"
+
+      - name: Init (S3 backend)
+        run: terraform -chdir=$TF_DIR init -input=false
+
+      - name: Apply
+        run: |
+          set -o pipefail
+          terraform -chdir=$TF_DIR apply -input=false -no-color -auto-approve 2>&1 \
+            | tee apply.txt
+          echo "## Terraform apply" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          tail -40 apply.txt >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
