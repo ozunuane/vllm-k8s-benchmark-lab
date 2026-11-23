@@ -1,0 +1,131 @@
+# Wave 1: llm-d Router (standalone mode) — EPP scheduler + InferencePool with
+# an Envoy sidecar as the entrypoint. No gateway controller needed: clients hit
+# Service llm-d-pd-epp:80 (-> sidecar 8081) with the OpenAI API.
+#
+# This is "tuning from code": the entire P/D scheduler config (plugins,
+# scheduling profiles, thresholds) lives in valuesObject below. Every tuning
+# change is a commit Argo syncs — diffable, revertible, benchmarkable by SHA.
+#
+# Values = upstream base.values.yaml + pd-disaggregation.values.yaml
+# (llm-d/llm-d@v1.0.0), adapted for this lab where noted.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: llm-d-v1-router
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  project: default
+  source:
+    repoURL: ghcr.io/llm-d/charts
+    chart: llm-d-router-standalone
+    # Pinned. Upstream guides use moving tag "v0" — under Argo's semver
+    # resolution a moving tag silently changes what's deployed. Never float.
+    targetRevision: v1.0.0
+    helm:
+      # Release name = InferencePool name = EPP service prefix (llm-d-pd-epp).
+      releaseName: llm-d-pd
+      valuesObject:
+        router:
+          extraServicePorts:
+            - name: http
+              port: 80
+              protocol: TCP
+              targetPort: 8081
+          epp:
+            # MUST stay 1: the inflight-load-producer's token accounting is
+            # per-process; >1 replica splits the view and misgates the
+            # affinity filter (upstream note). Standby replicas also never
+            # report Ready (leader election) and wedge Argo health.
+            replicas: 1
+            flags:
+              v: 2
+            # Lab sizing: upstream requests cpu 4/mem 8Gi — sized for H200
+            # fleets, won't fit our m5.large system nodes (2 vCPU).
+            resources:
+              requests:
+                cpu: 250m
+                memory: 512Mi
+              limits:
+                memory: 2Gi
+            pluginsConfigFile: "pd-config.yaml"
+            pluginsCustomConfig:
+              pd-config.yaml: |
+                apiVersion: llm-d.ai/v1
+                kind: EndpointPickerConfig
+                plugins:
+                - type: always-disagg-pd-decider
+                - type: disagg-profile-handler
+                  parameters:
+                    deciders:
+                      prefill: always-disagg-pd-decider
+                - type: prefill-filter
+                - type: decode-filter
+                - type: approx-prefix-cache-producer
+                  parameters:
+                    maxPrefixTokensToMatch: 131072
+                - type: inflight-load-producer
+                - type: prefix-cache-affinity-filter
+                  parameters:
+                    # Upstream value calibrated on 8x H200 prefill with
+                    # gpt-oss-120b. Placeholder until we re-run
+                    # guides/recipes/router/calibration/calibrate.sh against
+                    # our single L4/A10G prefill — tracked as a tuning task.
+                    peakPrefillThroughput: 33821
+                - type: token-load-scorer
+                - type: active-request-scorer
+                - type: max-score-picker
+                schedulingProfiles:
+                - name: prefill
+                  plugins:
+                  - pluginRef: prefill-filter
+                  - pluginRef: prefix-cache-affinity-filter
+                  - pluginRef: token-load-scorer
+                  - pluginRef: max-score-picker
+                - name: decode
+                  plugins:
+                  - pluginRef: decode-filter
+                  - pluginRef: active-request-scorer
+                  - pluginRef: max-score-picker
+          inferencePool:
+            failureMode: "FailOpen"
+          modelServers:
+            protocol: http
+            # Selector contract: must match the DisaggregatedSet pod labels
+            # in llm-d-v1/modelserver/disaggregatedset.yaml.
+            matchLabels:
+              llm-d.ai/pool: "qwen-pd"
+          proxy:
+            proxyType: envoy
+            # Upstream flags (defaults are --log-level trace + unbounded
+            # concurrency); concurrency lowered 8 -> 2 for our 2-vCPU nodes.
+            args:
+              - "--service-node"
+              - "envoy-sidecar"
+              - "--log-level"
+              - "warn"
+              - "--concurrency"
+              - "2"
+              - "--drain-strategy"
+              - "immediate"
+              - "--drain-time-s"
+              - "60"
+              - "-c"
+              - "/etc/envoy/envoy.yaml"
+            # Lab sizing (upstream: cpu 4/mem 8Gi).
+            resources:
+              requests:
+                cpu: 250m
+                memory: 512Mi
+              limits:
+                memory: 2Gi
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: llm-d
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

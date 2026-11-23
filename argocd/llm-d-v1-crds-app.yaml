@@ -1,0 +1,27 @@
+# Wave 0: Gateway API Inference Extension CRDs (InferencePool v1).
+# Standalone router mode needs no Gateway API CRDs and no gateway controller —
+# only the inference extension CRDs.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: llm-d-v1-crds
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/ozunuane/vllm-k8s-benchmark-lab.git
+    targetRevision: main
+    path: llm-d-v1/crds
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: default
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      # helm upgrade/kubectl apply choke on large CRD annotations; SSA is the
+      # standard fix (and what the upstream guide uses for operator CRDs).
+      - ServerSideApply=true

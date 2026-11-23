@@ -1,0 +1,27 @@
+# Wave 2: P/D model servers (DisaggregatedSet) — needs the LWS operator
+# (wave 0) and the router's InferencePool/EPP (wave 1) in place.
+# Prereq created out-of-band (rebuild runbook):
+#   kubectl create secret generic llm-d-hf-token -n llm-d --from-literal=HF_TOKEN=dummy
+# (model is ungated; a dummy token is fine)
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: llm-d-v1-modelserver
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/ozunuane/vllm-k8s-benchmark-lab.git
+    targetRevision: main
+    path: llm-d-v1/modelserver
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: llm-d
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

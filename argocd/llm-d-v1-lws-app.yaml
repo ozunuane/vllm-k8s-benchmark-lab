@@ -1,0 +1,32 @@
+# Wave 0: LeaderWorkerSet operator with the DisaggregatedSet feature enabled —
+# the controller that reconciles our P/D model servers (llm-d-v1/modelserver).
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: llm-d-v1-lws
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+spec:
+  project: default
+  source:
+    # OCI helm chart — version pinned (upstream quickstart uses 1.0.0).
+    repoURL: registry.k8s.io/lws/charts
+    chart: lws
+    targetRevision: 1.0.0
+    helm:
+      releaseName: lws
+      valuesObject:
+        enableDisaggregatedSet: true
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: lws-system
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      # helm upgrade never updates CRDs (upstream calls this out and applies
+      # them server-side) — Argo + SSA handles both install and upgrades.
+      - ServerSideApply=true

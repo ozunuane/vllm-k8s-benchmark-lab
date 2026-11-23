@@ -1,0 +1,9 @@
+# Gateway API Inference Extension CRDs (InferencePool v1), vendored from
+# the v1.6.2 release artifact:
+#   https://github.com/kubernetes-sigs/gateway-api-inference-extension/releases/download/v1.6.2/v1-manifests.yaml
+# Vendored (not remote-referenced) so the install is deterministic and the
+# diff is visible in git when we bump versions.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - gaie-v1-manifests.yaml
