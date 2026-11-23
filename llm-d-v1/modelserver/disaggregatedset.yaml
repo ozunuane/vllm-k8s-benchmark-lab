@@ -20,12 +20,12 @@ metadata:
 spec:
   # One 1-prefill + 1-decode set = 2 GPU nodes = the full 8 G-vCPU quota.
   # Raising slices requires a quota increase first (gotcha 11).
-  slices: 0 # parked for pd-proxy A/B benchmark run
+  slices: 1
 
   roles:
     - name: prefill
       spec:
-        replicas: 1 # per slice
+        replicas: 0 # per slice — parked for pd-proxy A/B benchmark (slices has CRD min=1, park via role replicas)
         groupIdentity: Hash
         rolloutStrategy:
           rollingUpdateConfiguration:
@@ -130,7 +130,7 @@ spec:
 
     - name: decode
       spec:
-        replicas: 1 # per slice
+        replicas: 0 # per slice — parked for pd-proxy A/B benchmark (slices has CRD min=1, park via role replicas)
         groupIdentity: Hash
         rolloutStrategy:
           rollingUpdateConfiguration:
