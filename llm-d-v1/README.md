@@ -2,12 +2,12 @@
 
 The official llm-d v1.0 project installed declaratively via Argo CD, in
 **standalone router mode** — no gateway controller, no Gateway API CRDs.
-This coexists with `../llm-d/`, the hand-rolled P/D disaggregation lab
+This coexists with `../llm-pd/`, the hand-rolled P/D disaggregation lab
 (NixlConnector + stdlib pd-proxy) — kept as the from-first-principles
 reference. Only one of the two should hold GPU replicas at a time
 (8 G-vCPU quota = 2 single-GPU nodes).
 
-| | `llm-d/` (hand-rolled) | `llm-d-v1/` (official) |
+| | `llm-pd/` (hand-rolled) | `llm-d-v1/` (official) |
 |---|---|---|
 | Routing | stdlib Python pd-proxy | EPP scheduler + Envoy sidecar (llm-d-router-standalone) |
 | Scheduling | none (every request is P→D) | pluggable: prefix-cache affinity, token/load scorers |
