@@ -365,8 +365,12 @@ resource "kubectl_manifest" "prefill_node_pool" {
             - key: node.kubernetes.io/instance-type
               operator: In
               values:
-                - g6.xlarge # L4 preferred (cheapest wins when in stock)
-                - g5.xlarge # A10G fallback — us-east-1 L4 drought (gotcha 16)
+                # Heterogeneous P/D: prefill is compute-bound — L40S has ~3x
+                # the A10G's FP16 tensor compute. Single type ON PURPOSE for
+                # a controlled experiment (ICE risk accepted, gotcha 16);
+                # NOTE: Karpenter picks cheapest-in-stock, so a cheaper
+                # fallback here would always win and defeat the pairing.
+                - g6e.xlarge # L40S — compute-strong prefill
             - key: karpenter.sh/capacity-type
               operator: In
               values:
