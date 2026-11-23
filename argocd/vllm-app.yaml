@@ -18,10 +18,11 @@ spec:
           s3Path: s3://vllm-bench-models-595893120359/qwen2.5-7b-instruct-awq
         autoscaling:
           enabled: true
-          # Parked at 0 for the LLM-D lab: quota (8 G-vCPUs) is fully
-          # consumed by prefill (g6, 4) + decode (g5, 4)
-          minReplicas: 0
-          maxReplicas: 1 # HPA requires max>=1; KEDA scales to 0 when trigger inactive
+          # Fixed single replica for the combined-vs-disaggregated A/B.
+          # Quota 16 fits combined (1 GPU) + llm-d P/D (2 GPUs) concurrently.
+          # Park again with min 0; raise max for KEDA scale-out tests.
+          minReplicas: 1
+          maxReplicas: 1
   destination:
     server: https://kubernetes.default.svc
     namespace: inference

@@ -25,7 +25,7 @@ spec:
   roles:
     - name: prefill
       spec:
-        replicas: 0 # per slice — parked for pd-proxy A/B benchmark (slices has CRD min=1, park via role replicas)
+        replicas: 1 # per slice
         groupIdentity: Hash
         rolloutStrategy:
           rollingUpdateConfiguration:
@@ -130,7 +130,7 @@ spec:
 
     - name: decode
       spec:
-        replicas: 0 # per slice — parked for pd-proxy A/B benchmark (slices has CRD min=1, park via role replicas)
+        replicas: 1 # per slice
         groupIdentity: Hash
         rolloutStrategy:
           rollingUpdateConfiguration:
