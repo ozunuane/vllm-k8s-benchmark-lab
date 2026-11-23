@@ -88,8 +88,13 @@ module "eks" {
   cluster_name    = local.cluster_name
   cluster_version = var.cluster_version
 
-  vpc_id     = module.vpc.vpc_id
-  subnet_ids = module.vpc.private_subnets
+  vpc_id = module.vpc.vpc_id
+  # Control plane pinned to the ORIGINAL 3 AZs: EKS rejects adding a subnet
+  # in a new AZ post-creation ("exact set of AZs... during cluster creation").
+  # Worker nodes are NOT bound by this — Karpenter discovers node subnets by
+  # tag, and kubelets join from any routed subnet, so the 4th-AZ subnet
+  # serves GPU nodes only (gotcha 27).
+  subnet_ids = slice(module.vpc.private_subnets, 0, 3)
 
   cluster_endpoint_public_access = true
 
