@@ -34,7 +34,7 @@ provider "aws" {
 
 locals {
   cluster_name = "vllm-bench-${var.environment}"
-  azs          = slice(data.aws_availability_zones.available.names, 0, 3)
+  azs          = slice(data.aws_availability_zones.available.names, 0, 4) # 4th AZ: g6e capacity lived only in us-east-1d (gotcha 26)
   tags = {
     Project     = "vllm-k8s-benchmark-lab"
     Environment = var.environment
@@ -60,8 +60,8 @@ module "vpc" {
   cidr = "10.0.0.0/16"
 
   azs             = local.azs
-  private_subnets = ["10.0.1.0/24", "10.0.2.0/24", "10.0.3.0/24"]
-  public_subnets  = ["10.0.101.0/24", "10.0.102.0/24", "10.0.103.0/24"]
+  private_subnets = ["10.0.1.0/24", "10.0.2.0/24", "10.0.3.0/24", "10.0.4.0/24"]
+  public_subnets  = ["10.0.101.0/24", "10.0.102.0/24", "10.0.103.0/24", "10.0.104.0/24"]
 
   enable_nat_gateway   = true
   single_nat_gateway   = true # save cost — single NAT for lab
